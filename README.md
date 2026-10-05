@@ -4,6 +4,8 @@ A small, read-only terminal monitor for **estimated reply-generation speed** in 
 
 **正文速度有据可查。** 显示每次回复的正文速度估算、非推理输出 token、正文时段、整轮 TTFT 和最近趋势。不会把输入 token 或按秒落盘的用量尖峰冒充生成速度。
 
+顶部显示**最新一次模型输出**的非推理、总输出和推理 token；非推理计数包含正文与工具调用参数。混合输出、纯工具调用也显示计数。默认列表为所有模型输出，按 **F** 切到最终回复。历史正文速度单独标明时间；混合输出缺少完整生成时段时只显示计数，不借用正文时段计算速度。按 **D** 可查看统计口径及历史正文／整轮用时。
+
 ## Windows：解压，双击
 
 1. 在 [Releases](https://github.com/cb8010d6/TokenTempo/releases) 下载 `TokenTempo-*-windows-x64.zip`。
@@ -25,7 +27,7 @@ node src/cli.mjs --once
 | --- | --- |
 | ← / → / Tab | 切换并固定会话 |
 | A | 自动跟随最近活动的会话 |
-| F | 切换最终回复 / 所有文本回复 |
+| F | 切换最终回复 / 所有模型输出（含工具） |
 | D | 显示统计口径 |
 | L | 切换中文 / English ASCII |
 | R | 重新扫描 |
@@ -52,7 +54,9 @@ The monitor only accepts a response window when:
 
 This is **an estimate, not server-side decoder TPS or a live token-arrival meter**. The message lifecycle can include buffering / client overhead, and non-reasoning output counters can include protocol overhead. It is not necessarily comparable to a vendor's decoder benchmark. No arbitrary upper clamp is applied: genuinely high rates remain visible if the records meet the rules.
 
-**Missing data is `—`, never a made-up zero.** Ambiguous or unsupported replies remain in the table with a reason. Mixed text/tool responses are deliberately excluded; their non-reasoning tokens include tool-call arguments. No character-to-token heuristic is used.
+**Missing data is `—`, never a made-up zero.** Mixed text/tool and tool-only outputs remain visible with their token counts, but are excluded from text-speed estimates: their non-reasoning tokens include tool-call arguments, and the supported logs do not provide matching full-generation timing. No character-to-token heuristic is used. The top panel always shows the latest counted output, independently of the table's final/all filter; historical text speed is explicitly labeled and timestamped.
+
+In JSON, `outputTokens` is the response's full output counter, `reasoningTokens` is its reasoning component, and `nonReasoningTokens` is their validated difference. Since v0.1.3, `textTokens` is null for mixed/tool or multiple-message output instead of mislabeling inclusive counts as text. `scope` distinguishes text, mixed, and tools/other output. Missing reasoning details leave the total visible while the difference remains unavailable. Tool arguments and conversation content are never exported.
 
 `TTFT` and total duration come from `task_complete.time_to_first_token_ms` and `duration_ms`. These are **turn-level client values**, not the displayed message's TTFT. A turn can include reasoning and multiple model/tool calls. Until the turn completes these fields can be missing. The last valid speed is retained during activity and is labeled as a previous completed sample.
 

@@ -96,9 +96,9 @@ export class SessionMetrics {
     const c = this.cycle;
     this.cycle = newCycle();
     this.legacyOnly = false;
-    if (!c.messages.size && !c.timings.size) return; // Tool-only calls do not become reply samples.
+    if (!c.messages.size && !c.timings.size && !c.mixed) return;
     const entries = [...c.messages.entries()];
-    const [messageId, msg] = entries[0] ?? [...c.timings.entries()][0];
+    const [messageId, msg] = entries[0] ?? [...c.timings.entries()][0] ?? [];
     const timing = c.timings.get(messageId);
     const u = p.usage ?? {};
     let reason = null;
@@ -111,13 +111,15 @@ export class SessionMetrics {
     else if (timing.end - timing.start < 250) reason = 'short';
     const outputTokens = counter(u.output_tokens) ? u.output_tokens : null;
     const reasoningTokens = counter(u.reasoning_output_tokens) ? u.reasoning_output_tokens : null;
-    const textTokens = outputTokens !== null && reasoningTokens !== null && reasoningTokens <= outputTokens ? outputTokens - reasoningTokens : null;
+    const nonReasoningTokens = outputTokens !== null && reasoningTokens !== null && reasoningTokens <= outputTokens ? outputTokens - reasoningTokens : null;
+    const textTokens = !c.mixed && entries.length === 1 ? nonReasoningTokens : null;
     if (!reason && !textTokens) reason = 'empty';
-    const durationMs = timing && number(timing.end) && number(timing.start) && timing.end > timing.start ? timing.end - timing.start : null;
+    const durationMs = !c.mixed && entries.length === 1 && timing && number(timing.end) && number(timing.start) && timing.end > timing.start ? timing.end - timing.start : null;
     this.add({
       id: p.response_id, messageId, turnId: p.turn_id, model: this.model,
-      phase: msg?.phase ?? timing?.phase ?? 'unknown', completedAt: timing?.end ?? time,
-      textTokens, outputTokens, reasoningTokens, durationMs,
+      phase: msg?.phase ?? timing?.phase ?? (c.mixed ? 'tool_output' : 'unknown'), completedAt: c.mixed ? time : timing?.end ?? time,
+      scope: c.mixed ? (entries.length ? 'mixed' : 'tools') : 'text',
+      textTokens, nonReasoningTokens, outputTokens, reasoningTokens, durationMs,
       tps: reason ? null : textTokens / (durationMs / 1000),
       quality: reason ? 'unavailable' : 'estimate', reason,
     });

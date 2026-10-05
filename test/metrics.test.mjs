@@ -31,3 +31,19 @@ test('new turn never reuses pending prior-turn message tokens',()=>{const s=setu
 test('snapshots never expose text, tool arguments, input tokens, or file paths',()=>{const s=setup();s.ingest(row('response_item',{type:'message',role:'user',content:'PRIVATE_INPUT'}));message(s);usage(s);const json=JSON.stringify(s.snapshot());for(const text of ['PRIVATE_INPUT','input_tokens','content','arguments','cwd'])assert.equal(json.includes(text),false);});
 test('phase can come from item completion when absent on raw response item',()=>{const s=setup();message(s);s.cycle.messages.set('m1',{phase:null});usage(s);assert.equal(s.records[0].phase,'final_answer');});
 test('idle or incomplete turns never erase the previous completed rate with zero',()=>{const s=setup();message(s);usage(s);s.ingest(row('event_msg',{type:'task_started',turn_id:'t2'},8000));assert.equal(s.records[0].tps,40);assert.equal(s.snapshot(base+9000).status,'active');});
+
+test('mixed output exposes inclusive counters without claiming pure-text tokens or speed',()=>{
+  const s=setup();message(s);s.ingest(row('response_item',{type:'function_call',id:'tool',arguments:'PRIVATE_TOOL_ARGS'}));usage(s);
+  const r=s.records[0];assert.equal(r.outputTokens,300);assert.equal(r.reasoningTokens,100);assert.equal(r.nonReasoningTokens,200);
+  assert.equal(r.textTokens,null);assert.equal(r.tps,null);assert.equal(r.scope,'mixed');assert.equal(r.completedAt,base+7000);
+  assert.equal(JSON.stringify(s.snapshot()).includes('PRIVATE_TOOL_ARGS'),false);
+});
+test('tool-only outputs are retained and duplicate usage is counted once',()=>{
+  const s=setup();s.ingest(row('response_item',{type:'custom_tool_call',id:'tool'}));usage(s);usage(s);
+  assert.equal(s.records.length,1);assert.equal(s.records[0].phase,'tool_output');assert.equal(s.records[0].nonReasoningTokens,200);
+  assert.equal(s.records[0].textTokens,null);assert.equal(s.records[0].durationMs,null);assert.equal(s.records[0].tps,null);
+});
+test('missing reasoning keeps total output visible but leaves non-reasoning unknown',()=>{
+  const s=setup();s.ingest(row('response_item',{type:'function_call'}));usage(s,{usage:{output_tokens:200}});
+  assert.equal(s.records[0].outputTokens,200);assert.equal(s.records[0].nonReasoningTokens,null);
+});

@@ -25,10 +25,10 @@ export function parseArgs(args) {
 
 export async function main(args=process.argv.slice(2)){
   const options=parseArgs(args);
-  if(options.help){console.log('TokenTempo 0.1.2 - local reply-speed estimates\n\nnode src/cli.mjs [--demo] [--once | --json] [--codex-home DIR] [--file JSONL]\n                [--session ID] [--limit 24] [--interval 1500] [--lang en|zh]\n                [--include-internal]\n\nArrow keys: session | A: auto | F: replies | D: details | L: language | R: refresh | Q: quit\nNo API key, browser, proxy or model calls. Missing timing stays unavailable.');return;}
+  if(options.help){console.log('TokenTempo 0.1.3 - local reply-speed estimates\n\nnode src/cli.mjs [--demo] [--once | --json] [--codex-home DIR] [--file JSONL]\n                [--session ID] [--limit 24] [--interval 1500] [--lang en|zh]\n                [--include-internal]\n\nArrow keys: session | A: auto | F: replies | D: details | L: language | R: refresh | Q: quit\nNo API key, browser, proxy or model calls. Missing timing stays unavailable.');return;}
   const store=options.demo?{state:demoState(),refresh:async()=>{}}:new MonitorStore(options.codexHome,{limit:options.limit,file:options.file,includeInternal:options['include-internal']});
-  const view={selectedId:options.session??null,phase:'final_answer',details:false,language:options.lang};
-  if(options.once||options.json){await store.refresh();if(options.json)console.log(JSON.stringify({app:'TokenTempo',version:'0.1.2',...store.state},null,2));else console.log(render(store.state,view,{color:false}));return;}
+  const view={selectedId:options.session??null,phase:'all',details:false,language:options.lang};
+  if(options.once||options.json){await store.refresh();if(options.json)console.log(JSON.stringify({app:'TokenTempo',version:'0.1.3',...store.state},null,2));else console.log(render(store.state,view,{color:false}));return;}
   if(!process.stdin.isTTY||!process.stdout.isTTY)throw new Error('Interactive mode requires a terminal. Double-click Start-TokenTempo.cmd, or use --once / --json.');
   let stopped=false,painting=false,timer;
   const draw=()=>{if(stopped)return;const c=Math.max(1,(process.stdout.columns||116)-1),r=Math.max(1,(process.stdout.rows||36)-1);process.stdout.write('\x1b[H'+render(store.state,view,{columns:c,rows:r})+'\x1b[J');};

@@ -9,6 +9,16 @@ test('latest sample retains numeric TPS, never K/s input throughput',()=>{const 
 test('terminal controls are stripped from log-sourced fields',()=>{assert.ok(!safe('\x1b]52;injected\x07').includes('\x1b'));assert.equal(width(fit('中A',4)),4);});
 test('invalid CLI arguments fail before scanning files',()=>{for(const args of [['--limit','0'],['--interval','1'],['--file'],['--unknown']])assert.throws(()=>parseArgs(args));assert.equal(parseArgs(['--demo']).demo,true);});
 test('phase filtering hides tool-mixed commentary by default',()=>{const state=demoState();state.sessions[0].records.push({id:'c',phase:'commentary',tps:1000,quality:'estimate',completedAt:Date.now()});assert.equal(selectView(state).latest.tps,37.2);assert.equal(selectView(state,null,'all').latest.tps,1000);});
-test('English compatibility view contains ASCII only, including charts and warnings',()=>{for(const details of [false,true]){const state=demoState();state.warnings=['部分日志超过限制'];const output=render(state,{language:'en',details},{color:false});assert.match(output,/ESTIMATED TEXT RATE/);assert.doesNotMatch(output,/[^\x20-\x7e\n]/);}});
+test('English compatibility view contains ASCII only, including charts and warnings',()=>{for(const details of [false,true]){const state=demoState();state.warnings=['部分日志超过限制'];const output=render(state,{language:'en',details},{color:false});assert.match(output,/LATEST OUTPUT TOKENS/);assert.doesNotMatch(output,/[^\x20-\x7e\n]/);}});
 test('English empty and small-window views also stay ASCII',()=>{const state={sessions:[],warnings:[],scanning:true};for(const [columns,rows] of [[80,30],[50,18]])assert.doesNotMatch(render(state,{language:'en'},{color:false,columns,rows}),/[^\x20-\x7e\n]/);});
 test('legacy Windows gets ASCII while modern terminals keep Chinese; CLI override is explicit',()=>{assert.equal(defaultLanguage('win32',{}),'en');assert.equal(defaultLanguage('win32',{WT_SESSION:'test'}),'zh');assert.equal(defaultLanguage('win32',{TERM_PROGRAM:'vscode'}),'zh');assert.equal(defaultLanguage('linux',{}),'zh');assert.equal(parseArgs(['--lang','zh']).lang,'zh');assert.throws(()=>parseArgs(['--lang','unknown']));});
+
+test('latest inclusive output stays visible above historical text speed even with final-only filter',()=>{
+  const state=demoState();state.sessions[0].records.push({id:'tool',phase:'tool_output',scope:'tools',quality:'unavailable',reason:'mixed',completedAt:Date.now(),outputTokens:1234,reasoningTokens:234,nonReasoningTokens:1000,textTokens:null,tps:null});
+  for(const language of ['zh','en']){
+    const output=render(state,{language,phase:'final_answer'},{color:false});
+    assert.match(output,/1,234/);assert.match(output,/1,000/);assert.match(output,/234/);
+    assert.match(output,language==='zh'?/历史正文/:/Historical text/);
+    assert.doesNotMatch(output,/1,000 tokens\/s/);
+  }
+});

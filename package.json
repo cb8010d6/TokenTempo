@@ -1,0 +1,10 @@
+{
+  "name": "token-tempo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local reply-speed estimates for ChatGPT Work and Codex",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22" },
+  "scripts": { "start": "node src/cli.mjs", "test": "node --test", "check": "node --check src/cli.mjs && node --check src/tui.mjs" }
+}

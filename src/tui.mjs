@@ -41,7 +41,7 @@ function renderEnglish(state,view,{columns,rows,color,now}){
   const line=(s='',c='')=>{const text=fit(ascii(s),cols);out.push(c?paint(text,c):text);};
   const box=(s='',c='')=>line('  '+ascii(s),c),rule=()=>line('-'.repeat(cols),'38;5;240');
   if(cols<76||rows<24){line('TokenTempo','1;38;5;156');rule();line('Enlarge the terminal to at least 76 columns x 24 rows.');line(`Current: ${columns} x ${rows}`);line(`Estimated text rate: ~ ${fmt(latest?.tps)} tokens/s`);line('Q Quit | L Language');return out.slice(0,rows).join('\n');}
-  box('TokenTempo / REPLY SPEED                                      v0.1.1  LOCAL ONLY','1;38;5;156');rule();
+  box('TokenTempo / REPLY SPEED                                      v0.1.2  LOCAL ONLY','1;38;5;156');rule();
   box(state.demo?'DEMO / SYNTHETIC DATA':state.scanning?'Scanning recent local sessions...':'WORK + CODEX / ESTIMATED TEXT RATE','38;5;109');
   const idx=session?state.sessions.findIndex(s=>s.id===session.id)+1:0;
   box(`${view.selectedId?'PINNED':'AUTO'} ${idx}/${state.sessions.length} | ${session?.model??'waiting for session'} | ${session?.id?.slice(-12)??''}`);
@@ -65,7 +65,7 @@ function renderEnglish(state,view,{columns,rows,color,now}){
   }
   if(view.details){rule();box('Formula: (response output tokens - reasoning tokens) / message seconds');box('Only a single text message with matching timing is accepted. Tool calls are excluded.');box('Message timing and non-reasoning counters are approximate, not decoder telemetry.');box('TTFT is turn-level. This ASCII view avoids unsupported console fonts. L: Chinese.');}
   while(out.length<rows-4)line();rule();
-  box(state.warnings?.length?'Some logs skipped or unavailable. Default: recent local sessions, <=64 MiB per file.':session?.parseErrors?`${session.parseErrors} malformed records; affected samples excluded.`:'Completed samples only | Not instantaneous TPS | No credentials or model calls','38;5;245');
+  box(state.warnings?.length?'Some logs unavailable or outside the recent-session limit.':session?.parseErrors?`${session.parseErrors} malformed records; affected samples excluded.`:'Completed samples only | Not instantaneous TPS | No credentials or model calls','38;5;245');
   box('Left/Right Session | A Auto | F Replies | D Details | L Language | R Refresh | Q Quit','38;5;109');
   box(`Updated ${clock(state.updatedAt)}${state.updatedAt&&now-state.updatedAt>10000?' | may be stale':''}`,'38;5;240');
   return out.slice(0,rows).join('\n');
@@ -83,7 +83,7 @@ export function render(state, view={}, {columns=116,rows=36,color=true,now=Date.
   if (cols<76 || rows<24) {
     line('TokenTempo · 词速表','1;38;5;156');rule();line('请放大窗口至至少 76 列 × 24 行。');line(`当前 ${columns} 列 × ${rows} 行`);line(`最近正文速度估算: ${fmt(latest?.tps)} tokens/s`);line('Q 退出');return out.slice(0,rows).join('\n');
   }
-  line('  TokenTempo  /  词速表                                             v0.1.1  LOCAL ONLY','1;38;5;156');
+  line('  TokenTempo  /  词速表                                             v0.1.2  LOCAL ONLY','1;38;5;156');
   rule();
   box(state.demo?'DEMO · 虚构样例数据':state.scanning?'正在扫描最近的本地会话…':'WORK + CODEX  /  正文输出速度估算','38;5;109');
   const idx=session?state.sessions.findIndex(s=>s.id===session.id)+1:0;

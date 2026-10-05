@@ -60,7 +60,7 @@ This is **an estimate, not server-side decoder TPS or a live token-arrival meter
 
 - Reads `sessions/` beneath `CODEX_HOME`, or the current user's default Codex home. `--codex-home` overrides it.
 - Scans metadata to select the 24 most recently modified local rollouts; `--limit` allows 1–100. Content is read incrementally, and discovery refreshes every 10 seconds.
-- Skips files larger than 64 MiB at initial load and malformed / oversized lines. Interrupted final lines are held until complete. Older rollouts without matching per-response counters and message timing do not produce speed estimates.
+- Large rollouts are read in 256 KiB chunks, without a file-size exclusion. The first scan reads their history and may take several seconds; subsequent refreshes read only appended bytes. Malformed / oversized lines are skipped, and interrupted final lines are held until complete. Older rollouts without matching per-response counters and message timing do not produce speed estimates.
 - Cloud-only sessions, remote computers, archived sessions, and unpersisted traffic are outside the default coverage. A local Work session can be measured when it writes the supported records; this is not a promise that every Work backend does so.
 - Reads **no auth files**, starts **no API calls**, changes **no Codex config**, and opens **no network listener**. TUI mode has no network requests, price fetching, tracking, or automatic updates.
 - JSON is parsed in memory. Prompt text, assistant text and tool arguments are discarded rather than retained by the metrics model. Only numeric metrics, IDs and model names are displayed/exported. `--json` output is local data; review it before sharing.

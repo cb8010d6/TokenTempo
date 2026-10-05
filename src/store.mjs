@@ -3,7 +3,6 @@ import path from 'node:path';
 import { SessionMetrics } from './metrics.mjs';
 
 const MAX_LINE = 8 * 1024 * 1024;
-const MAX_FILE = 64 * 1024 * 1024;
 
 export class LogTail {
   constructor(file) {
@@ -20,7 +19,6 @@ export class LogTail {
       Object.assign(this, fresh);
     }
     this.inode = stat.ino;
-    if (stat.size > MAX_FILE && this.position === 0) return false;
     const handle = await fs.open(this.file, 'r');
     try {
       const buffer = Buffer.alloc(256 * 1024);
@@ -110,7 +108,7 @@ export class MonitorStore {
         let tail = this.tails.get(entry.file);
         if (!tail) { tail = new LogTail(entry.file); this.tails.set(entry.file, tail); }
         try {
-          if (!await tail.read()) { warnings.push('部分日志超过 64 MiB，已跳过；可使用 --file 指定较小的会话。'); continue; }
+          await tail.read();
           const snapshot=tail.metrics.snapshot();
           if(this.includeInternal || snapshot.model!=='codex-auto-review')sessions.push(snapshot);
         } catch { warnings.push('部分日志暂时无法读取，稍后自动重试。'); }

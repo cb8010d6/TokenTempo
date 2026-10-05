@@ -11,6 +11,8 @@ A small, read-only terminal monitor for **estimated reply-generation speed** in 
 3. 双击 **`Start-TokenTempo.cmd`**。便携包内置 Node.js，无需安装依赖、配置 API Key 或修改 Codex。
 4. 保持窗口打开，在 Work / Codex 完成一次回复。速度在完整记录落盘后更新。
 
+双击时优先在 **Windows Terminal** 打开中文版。旧版 Windows 控制台可能缺少中文字形；没有现代终端时自动使用 **English / ASCII** 兼容界面，不修改系统字体或注册表。按 **L** 随时切换语言，也可使用 `--lang en` / `--lang zh`。若要强制留在当前控制台，可设置 `TOKEN_TEMPO_NO_WT=1`。
+
 源码 ZIP 不包含运行环境；使用源码需要 Node.js 22 或更新版本。
 
 ```sh
@@ -25,10 +27,13 @@ node src/cli.mjs --once
 | A | 自动跟随最近活动的会话 |
 | F | 切换最终回复 / 所有文本回复 |
 | D | 显示统计口径 |
+| L | 切换中文 / English ASCII |
 | R | 重新扫描 |
 | Q / Esc / Ctrl+C | 退出 |
 
 窗口至少需要 76 列 × 24 行。自动跟随依据**日志活动**，不读取桌面焦点。会话以模型名和 ID 后缀区分，不展示聊天标题或内容。
+
+默认排除内部子任务（包括 `codex-auto-review` 审核会话），先过滤再选最近会话。需要查看时加 `--include-internal`；显式 `--file` 也允许读取指定的内部会话。
 
 ## What the number actually means
 
@@ -71,6 +76,8 @@ node src/cli.mjs --codex-home "<codex-home>"
 node src/cli.mjs --file "<session-rollout.jsonl>"
 node src/cli.mjs --session "<session-id>"
 node src/cli.mjs --limit 40 --interval 2000
+node src/cli.mjs --lang en
+node src/cli.mjs --include-internal
 node src/cli.mjs --json > metrics.json
 ```
 

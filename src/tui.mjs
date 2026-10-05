@@ -30,7 +30,49 @@ export function selectView(state, selectedId = null, phase = 'final_answer') {
   return {session, records, samples, latest:samples[0], median:median(samples.slice(0,20).map(r=>r.tps))};
 }
 
+const englishLabels={mixed:'mixed tool call',multiple:'multiple messages',timing:'missing timing',usage:'missing usage',short:'too short',boundary:'unmatched records',legacy:'no response usage',empty:'no text tokens'};
+const ascii=s=>safe(s).replaceAll('—','-').replaceAll('≈','~').replaceAll('·','|').replaceAll('–','-').replace(/[^\x20-\x7e]/gu,'?');
+export function defaultLanguage(platform=process.platform,env=process.env){return platform==='win32'&&!env.WT_SESSION&&!env.TERM_PROGRAM?'en':'zh';}
+
+function renderEnglish(state,view,{columns,rows,color,now}){
+  const cols=Math.max(1,Math.min(columns,160)),inside=Math.max(0,cols-4);
+  const {session,records,samples,latest,median:med}=selectView(state,view.selectedId,view.phase);
+  const out=[],paint=(s,c)=>color?`\x1b[${c}m${s}\x1b[0m`:s;
+  const line=(s='',c='')=>{const text=fit(ascii(s),cols);out.push(c?paint(text,c):text);};
+  const box=(s='',c='')=>line('  '+ascii(s),c),rule=()=>line('-'.repeat(cols),'38;5;240');
+  if(cols<76||rows<24){line('TokenTempo','1;38;5;156');rule();line('Enlarge the terminal to at least 76 columns x 24 rows.');line(`Current: ${columns} x ${rows}`);line(`Estimated text rate: ~ ${fmt(latest?.tps)} tokens/s`);line('Q Quit | L Language');return out.slice(0,rows).join('\n');}
+  box('TokenTempo / REPLY SPEED                                      v0.1.1  LOCAL ONLY','1;38;5;156');rule();
+  box(state.demo?'DEMO / SYNTHETIC DATA':state.scanning?'Scanning recent local sessions...':'WORK + CODEX / ESTIMATED TEXT RATE','38;5;109');
+  const idx=session?state.sessions.findIndex(s=>s.id===session.id)+1:0;
+  box(`${view.selectedId?'PINNED':'AUTO'} ${idx}/${state.sessions.length} | ${session?.model??'waiting for session'} | ${session?.id?.slice(-12)??''}`);
+  box(session?.status==='active'?'Turn running / showing the last completed sample':session?.status==='unknown'?'No recent log activity / current status unknown':'Waiting for a reply / updates after completion','38;5;178');rule();
+  box('ESTIMATED TEXT RATE / LAST VALID REPLY','38;5;109');box(`~ ${fmt(latest?.tps)} tokens/s`,'1;38;5;156');
+  box(latest?`Sample: ${clock(latest.completedAt)} | ${latest.model}`:'No valid sample yet. Complete a text reply in Work / Codex.','38;5;245');
+  box(`Text approx ${fmt(latest?.textTokens)} tokens | Output ${secs(latest?.durationMs)} | Turn TTFT ${secs(latest?.turn?.ttftMs)}`);
+  box(`Last-20 median ${fmt(med)} t/s | Whole turn ${secs(latest?.turn?.durationMs)} | Valid ${samples.length}/${records.length}`);rule();
+  box('RECENT REPLIES / ONE POINT PER COMPLETED REPLY','38;5;109');
+  const vals=samples.slice(0,20).reverse().map(r=>r.tps),bars='._-:=+*#',max=Math.max(...vals,1);
+  box(vals.length?vals.map(v=>bars[Math.min(7,Math.floor(v/max*7))]).join('  '):'-','38;5;156');
+  box(vals.length?`Older -> Newer | Range ${fmt(Math.min(...vals))} - ${fmt(Math.max(...vals))} t/s`:'Input tokens and log refresh intervals are never used as output speed.','38;5;245');rule();
+  box(`${view.phase==='all'?'ALL TEXT REPLIES':'FINAL REPLIES'} / ${records.length} recorded`,'38;5;109');
+  const detailed=cols>=106,sizes=detailed?[18,14,16,13,13,inside-74]:[16,12,10,10,inside-48];
+  const row=values=>values.map((v,i)=>fit(ascii(v),sizes[i])).join('');
+  box(row(detailed?['Completed','Text t/s','Text tokens','Output time','Turn time','Status']:['Completed','Text t/s','Tokens','Time','Status']),'38;5;245');
+  if(!records.length)box('No replies. Use Left/Right to change session, F to change reply type.','38;5;245');
+  for(const r of records.slice(0,Math.max(1,rows-25-(view.details?5:0)))){
+    const status=r.quality==='estimate'?'estimate':englishLabels[r.reason]??'unavailable';
+    box(row(detailed?[clock(r.completedAt),r.tps==null?'-':`~ ${fmt(r.tps)}`,fmt(r.textTokens),secs(r.durationMs),secs(r.turn?.durationMs),status]:[clock(r.completedAt),r.tps==null?'-':`~ ${fmt(r.tps)}`,fmt(r.textTokens),secs(r.durationMs),status]),r.quality==='estimate'?'38;5;152':'38;5;178');
+  }
+  if(view.details){rule();box('Formula: (response output tokens - reasoning tokens) / message seconds');box('Only a single text message with matching timing is accepted. Tool calls are excluded.');box('Message timing and non-reasoning counters are approximate, not decoder telemetry.');box('TTFT is turn-level. This ASCII view avoids unsupported console fonts. L: Chinese.');}
+  while(out.length<rows-4)line();rule();
+  box(state.warnings?.length?'Some logs skipped or unavailable. Default: recent local sessions, <=64 MiB per file.':session?.parseErrors?`${session.parseErrors} malformed records; affected samples excluded.`:'Completed samples only | Not instantaneous TPS | No credentials or model calls','38;5;245');
+  box('Left/Right Session | A Auto | F Replies | D Details | L Language | R Refresh | Q Quit','38;5;109');
+  box(`Updated ${clock(state.updatedAt)}${state.updatedAt&&now-state.updatedAt>10000?' | may be stale':''}`,'38;5;240');
+  return out.slice(0,rows).join('\n');
+}
+
 export function render(state, view={}, {columns=116,rows=36,color=true,now=Date.now()}={}) {
+  if(view.language==='en')return renderEnglish(state,view,{columns,rows,color,now});
   const cols=Math.max(32,Math.min(columns,160)), inside=cols-4;
   const {session,records,samples,latest,median:med}=selectView(state,view.selectedId,view.phase);
   const out=[];
@@ -41,7 +83,7 @@ export function render(state, view={}, {columns=116,rows=36,color=true,now=Date.
   if (cols<76 || rows<24) {
     line('TokenTempo · 词速表','1;38;5;156');rule();line('请放大窗口至至少 76 列 × 24 行。');line(`当前 ${columns} 列 × ${rows} 行`);line(`最近正文速度估算: ${fmt(latest?.tps)} tokens/s`);line('Q 退出');return out.slice(0,rows).join('\n');
   }
-  line('  TokenTempo  /  词速表                                             v0.1.0  LOCAL ONLY','1;38;5;156');
+  line('  TokenTempo  /  词速表                                             v0.1.1  LOCAL ONLY','1;38;5;156');
   rule();
   box(state.demo?'DEMO · 虚构样例数据':state.scanning?'正在扫描最近的本地会话…':'WORK + CODEX  /  正文输出速度估算','38;5;109');
   const idx=session?state.sessions.findIndex(s=>s.id===session.id)+1:0;
@@ -77,7 +119,7 @@ export function render(state, view={}, {columns=116,rows=36,color=true,now=Date.
   rule();
   const warning=state.warnings?.[0] || (session?.parseErrors?`有 ${session.parseErrors} 条无法解析的日志，相关样本不计速度。`:'完成后更新 · 不是瞬时速度 · 不读取登录凭据或发起模型调用');
   box(warning,'38;5;245');
-  box('← → 会话   A 自动跟随   F 回复类型   D 口径说明   R 刷新   Q 退出','38;5;109');
+  box('← → 会话   A 自动跟随   F 回复类型   D 口径   L 中/EN   R 刷新   Q 退出','38;5;109');
   box(`更新 ${clock(state.updatedAt)}${state.updatedAt && now-state.updatedAt>10000?' · 数据可能过期':''}`,'38;5;240');
   return out.slice(0,rows).join('\n');
 }

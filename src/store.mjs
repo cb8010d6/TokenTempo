@@ -76,10 +76,12 @@ async function discover(root, depth = 0) {
 }
 
 export class MonitorStore {
-  constructor(root, { limit = 24, file = null } = {}) {
+  constructor(root, { limit = 24, file = null, includeInternal = false } = {}) {
     this.root = root;
     this.limit = limit;
     this.file = file;
+    this.includeInternal = includeInternal || Boolean(file);
+    this.sourceCache = new Map();
     this.tails = new Map();
     this.lastDiscovery = 0;
     this.state = { sessions: [], scanning: true, warnings: [], updatedAt: null };
@@ -91,7 +93,12 @@ export class MonitorStore {
       if (!this.lastDiscovery || Date.now() - this.lastDiscovery > 10000) {
         const found = this.file ? [{ file: this.file }] : await discover(path.join(this.root, 'sessions'));
         found.sort((a, b) => b.modified - a.modified);
-        this.files = found.slice(0, this.limit);
+        this.files = [];
+        for(const entry of found){
+          if(!this.includeInternal && await this.isInternal(entry))continue;
+          this.files.push(entry);
+          if(this.files.length>=this.limit)break;
+        }
         this.discovered = found.length;
         this.lastDiscovery = Date.now();
         const keep = new Set(this.files.map(f => f.file));
@@ -104,15 +111,32 @@ export class MonitorStore {
         if (!tail) { tail = new LogTail(entry.file); this.tails.set(entry.file, tail); }
         try {
           if (!await tail.read()) { warnings.push('部分日志超过 64 MiB，已跳过；可使用 --file 指定较小的会话。'); continue; }
-          sessions.push(tail.metrics.snapshot());
+          const snapshot=tail.metrics.snapshot();
+          if(this.includeInternal || snapshot.model!=='codex-auto-review')sessions.push(snapshot);
         } catch { warnings.push('部分日志暂时无法读取，稍后自动重试。'); }
       }
-      if (this.discovered > this.limit) warnings.push(`当前读取最近修改的 ${this.limit} 个会话，未扫描更早的会话内容。`);
+      if (this.discovered > this.limit && this.files.length === this.limit) warnings.push(`当前读取最近修改的 ${this.limit} 个会话，未扫描更早的会话内容。`);
       if (!sessions.length) warnings.push('尚未找到可读取的本地会话。云端会话或未落盘的记录不在统计范围内。');
       this.state = { sessions: sessions.sort((a, b) => (b.lastEventAt ?? 0) - (a.lastEventAt ?? 0)),
         scanning: false, warnings: [...new Set(warnings)], updatedAt: Date.now() };
     } catch {
       this.state = { ...this.state, scanning: false, warnings: ['日志目录暂时无法读取；请检查 --codex-home 设置。'] };
     } finally { this.running = false; }
+  }
+
+  async isInternal(entry){
+    if(this.sourceCache.has(entry.file))return this.sourceCache.get(entry.file);
+    let handle;
+    try{
+      handle=await fs.open(entry.file,'r');
+      const buffer=Buffer.alloc(1024*1024);
+      const {bytesRead}=await handle.read(buffer,0,buffer.length,0);
+      const end=buffer.subarray(0,bytesRead).indexOf(10);
+      if(end<0)return false;
+      const row=JSON.parse(buffer.subarray(0,end).toString('utf8'));
+      const internal=row.type==='session_meta' && Boolean(row.payload?.source?.subagent);
+      this.sourceCache.set(entry.file,internal);
+      return internal;
+    }catch{return false;}finally{await handle?.close();}
   }
 }

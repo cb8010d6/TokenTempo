@@ -1,5 +1,13 @@
 @echo off
 setlocal
+rem Prefer Windows Terminal for CJK font fallback. Explicit CLI args stay in the current terminal.
+if "%~1"=="" if not defined WT_SESSION if not defined TOKEN_TEMPO_NO_WT (
+  where wt.exe >nul 2>&1
+  if not errorlevel 1 (
+    wt.exe -w new new-tab --title TokenTempo cmd.exe /d /c ""%~f0" --lang zh"
+    if not errorlevel 1 exit /b 0
+  )
+)
 chcp 65001 >nul
 title TokenTempo - Work and Codex reply speed
 cd /d "%~dp0"
